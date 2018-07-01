@@ -184,7 +184,7 @@ def word_count(text, dc):
     for w in text:
         dc[w]+=1
 def remove_low_freq(text, dc):
-    return ' '.join( [w for w in text.split() if w in dc] )
+    return ' '.join([w for w in text.split() if w in dc])
     
 def create_bigrams(text):
     try:
@@ -226,7 +226,7 @@ print('[{}] Finished TRAIN DATA PREPARATION'.format(time.time() - start_time))
 start_time = time.time()
 word_count_dict_one = defaultdict(np.uint32)
 for feat in ['name','item_description' ]:
-    df_train[feat].apply(             lambda x : word_count(x, word_count_dict_one) )
+    df_train[feat].apply(lambda x : word_count(x, word_count_dict_one) )
 rare_words = [key for key in word_count_dict_one if  word_count_dict_one[key]<min_df_one ]
 for key in rare_words :
     word_count_dict_one.pop(key, None)
