@@ -51,3 +51,10 @@ fabric.properties
 # Editor-based Rest Client
 .idea/httpRequests
 \.idea/
+
+WhatsCooking_mySol/data
+Mercari_mySol/data
+Santander_mySol/data
+Titanic_mySol/data
+
+
