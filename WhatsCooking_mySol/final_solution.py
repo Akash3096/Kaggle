@@ -1,17 +1,3 @@
-# from sklearn.feature_extraction.text import TfidfVectorizer
-# from sklearn.multiclass import OneVsRestClassifier
-# from sklearn.preprocessing import LabelEncoder
-# from sklearn.svm import SVC
-# import pandas as pd
-# import json
-#
-# # Dataset Preparation
-# print ("Read Dataset ... ")
-# def read_dataset(path):
-# 	return json.load(open(path))
-# train = read_dataset('train.json')
-# test = read_dataset('test.json')
-#
 # # Text Data Features
 # print ("Prepare text data of Train and Test ... ")
 # def generate_text(data):
@@ -74,12 +60,12 @@
 import pandas as pd
 from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
 
-train = pd.read_json('train.json')
-test = pd.read_json('test.json')
+train = pd.read_json('data/all/train.json')
+test = pd.read_json('data/all/test.json')
 target = train['cuisine']
 
-train['in_text'] = train['ingredients'].apply(lambda x: ' '.join([str(i).lower() for i in x]))
-test['in_text'] = test['ingredients'].apply(lambda x: ' '.join([str(i).lower() for i in x]))
+train['in_text'] = train['ingredients'].apply(lambda x: ','.join([str(i).lower() for i in x])).astype(str)
+test['in_text'] = test['ingredients'].apply(lambda x: ','.join([str(i).lower() for i in x])).astype(str)
 
 from sklearn.feature_extraction.text import TfidfVectorizer as Tfidf
 from sklearn.feature_extraction.text import CountVectorizer
@@ -91,27 +77,10 @@ from collections import defaultdict
 import numpy as np
 from scipy.sparse import csr_matrix, hstack
 
-def word_count(text, dc):
-    text = set(text.split(' '))
-    for w in text:
-        dc[w] += 1
-
-
-def remove_high_freq(text, dc):
-    return ' '.join([w for w in text.split() if w in dc])
-
-
 label = LabelEncoder()
 y_target = label.fit_transform(target)
 print(y_target.shape)
-word_count_dict_one = defaultdict(np.uint32)
-train['in_text'].apply(lambda x: word_count(x, word_count_dict_one))
-sorted_dict = sorted(word_count_dict_one.values(),reverse=True)
 
-freq_words = [key for key in word_count_dict_one if word_count_dict_one[key]>5000]
-for key in freq_words:
-    word_count_dict_one.pop(key, None)
-train['in_text'] = train['in_text'].apply( lambda x : remove_high_freq(x, word_count_dict_one))
 tfidf = Tfidf()
 train_tf = tfidf.fit_transform(train['in_text'])
 test_tf = tfidf.transform(test['in_text'])
@@ -120,28 +89,64 @@ def tokenize(text):
     return [w for w in text.split()]
 
 
-count = CountVectorizer(min_df=20, ngram_range=(1, 2),dtype=np.uint8, tokenizer=tokenize, binary=True )
+count = CountVectorizer(min_df=20, ngram_range=(1, 3),dtype=np.uint8, tokenizer=tokenize, binary=True )
 train_count = count.fit_transform(train['in_text'])
 test_count = count.transform(test['in_text'])
+
 final_train = hstack((train_tf, train_count)).tocsr()
 final_test = hstack((test_tf, test_count)).tocsr()
 
-print(train_tf.shape)
-print(test_tf.shape)
-print(train_count.shape)
-print(test_count.shape)
+# print(train_tf.shape)
+# print(test_tf.shape)
+# print(train_count.shape)
+# print(test_count.shape)
 print(final_train.shape)
 print(final_test.shape)
 
-forest = RandomForestClassifier(n_estimators = 100)
+import lightgbm as lgb
+
+X_train, X_test, y_train, y_test = train_test_split(final_train, y_target, test_size=0.33, random_state=42)
+
+lgb_train = lgb.Dataset(X_train, y_train)
+lgb_eval = lgb.Dataset(X_test, y_test, reference=lgb_train)
+
+params = {
+    'task': 'train',
+    'boosting_type': 'gbdt',
+    'objective': 'regression',
+    'num_leaves': 31,
+    'learning_rate': 0.05,
+    'feature_fraction': 0.9,
+    'bagging_fraction': 0.8,
+    'bagging_freq': 5,
+    'verbose': 0
+}
+gbm = lgb.train(params,
+                lgb_train,
+                num_boost_round=20,
+                valid_sets=lgb_eval,
+                early_stopping_rounds=5)
+# grad.fit(X_train,y_train)
+# y_pred = grad.predict(X_test)
+y_pred = gbm.predict(X_test, num_iteration=gbm.best_iteration)
+ypred = [int(i) for i in y_pred]
+print(accuracy_score(ypred, y_test))
+# y_pred = label.inverse_transform(y_pred)
+
+
+
 # classifier = GradientBoostingClassifier(loss='deviance', n_estimators=100, learning_rate=0.1)
 # classifier.fit(final_train, y_target)
-forest.fit(final_train,y_target)
-y_pred = forest.predict(final_test)
-y_pred = label.inverse_transform(y_pred)
-subm = test.copy()
-subm['cuisine'] = y_pred
-columns = ['ingredients','in_text']
-subm.drop(columns, inplace=True, axis=1)
-subm.head()
-subm.to_csv("first_cook.csv")
+
+
+
+# forest.fit(final_train,y_target)
+# y_pred = forest.predict(final_test)
+# y_pred = label.inverse_transform(y_pred)
+#
+#
+# subm = pd.read_csv('data/all/sample_submission.csv')
+# subm['cuisine'] = y_pred
+# columns = ['ingredients','in_text']
+#
+# subm.to_csv("first_cook.csv", index=False)
