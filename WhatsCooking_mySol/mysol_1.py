@@ -1,140 +1,95 @@
-# import pandas as pd
-# import json
-# from sklearn.feature_extraction.text import TfidfVectorizer
-# from sklearn.metrics import accuracy_score
-# from sklearn.ensemble import GradientBoostingClassifier
-#
-# print("Reading data...")
-# train = json.load(open("train.json"))
-# test = json.load(open("test.json"))
-#
-# print("Vectorize data...")
-# labels = []
-# train_data = []
-# for recipe in train:
-#     train_data.append(" ".join(recipe["ingredients"]))
-#     if recipe["cuisine"] not in labels:
-#         labels.append(recipe["cuisine"])
-#
-# test_data = []
-# for recipe in test:
-#     test_data.append(" ".join(recipe["ingredients"]))
-#
-# join = " ".join(test[0]['ingredients'])
-#
-# # create vectorizer
-# vectorizer = TfidfVectorizer()
-# vectorizer.fit(train_data)
-# # create map for labels
-# label_to_int = dict(((c, i) for i, c in enumerate(labels)))
-# int_to_label = dict(((i, c) for i, c in enumerate(labels)))
-#
-# Y_train = [label_to_int[r["cuisine"]] for r in train]
-# X_train = vectorizer.transform(train_data)
-# X_test = vectorizer.transform(test_data)
-#
-# print("Fit classifier...")
-#
-# classifier = GradientBoostingClassifier(loss='deviance', n_estimators=100, learning_rate=0.1)
-# classifier.fit(X_train, Y_train)
-#
-# print("Predicting on test data...")
-# y_pred = classifier.predict(X_test)
-#
-# print("Generate Submission File ... ")
-# test_id = [doc['id'] for doc in test]
-# test_cuisine = [int_to_label[i] for i in y_pred]
-# sub = pd.DataFrame({'id': test_id, 'cuisine': test_cuisine}, columns=['id', 'cuisine'])
-# sub.to_csv('svm_output.csv', index=False)
-
-
-# import numpy as np # linear algebra
-# import pandas as pd # data processing, CSV file I/O (e.g. pd.read_csv)
-#
-#
-# # Load data
-# train = pd.read_json("train.json")
-# test  = pd.read_json("test.json")
-# num_train, num_test = len(train), len(test)
-# print(num_train, num_test)
-#
-# df = pd.concat([train, test]).set_index('id')
-# del train, test
-#
-# # Preprocess
-# def tokenize(ingredients):
-#     for ingredient in ingredients:
-#         sub = ingredient.split()
-#         for w in sub:
-#             yield w
-#         if len(sub) > 1:
-#             yield ingredient
-#
-# df['ingredients_str'] = df['ingredients'].apply(lambda x: ','.join(tokenize(x)))
-#
-# # ---------------------- Transform -------------===-----------
-# from sklearn.feature_extraction.text import TfidfVectorizer as Tfidf
-# from sklearn.linear_model import LogisticRegression
-# from sklearn.model_selection import train_test_split
-# from sklearn.preprocessing import LabelEncoder
-# from sklearn.metrics import accuracy_score
-#
-# # Get trainset and testset
-# train = df.iloc[:num_train]
-# test = df.iloc[num_train:]
-#
-# # Label encoding
-# le = LabelEncoder()
-# y = le.fit_transform(train['cuisine'])
-#
-# # TF-IDF
-# vectorizer = Tfidf(min_df=5,
-#                    max_df=0.9,
-#                    tokenizer=lambda x: x.split(','),
-#                    sublinear_tf=True,
-#                   )
-#
-# X_train = vectorizer.fit_transform(train['ingredients_str'])
-# X_test = vectorizer.transform(test['ingredients_str'])
-# print(X_train.shape)
-#
-# # Split and get validation set
-# X_train, X_valid, y_train, y_valid = train_test_split(X_train, y, test_size=0.05, random_state=321)
-#
-# # ---------------------------- Training ---------------------------------
-# import lightgbm as lgb
-# dtrain = lgb.Dataset(X_train, y_train)
-# dvalid = lgb.Dataset(X_valid, y_valid, reference=dtrain)
-#
-# params = {
-#     'task': 'train',
-#     'boosting_type': 'gbdt',
-#     'objective': 'multiclassova',
-#     # 'objective': 'multiclass',
-#     'num_class': 20,
-#     'metric': {'multi_error'},
-#     'num_leaves': 31,
-#     'learning_rate': 0.04,
-# }
-#
-# gbm = lgb.train(params,
-#                 dtrain,
-#                 num_boost_round=300,
-#                 valid_sets=dvalid,
-#                 verbose_eval=30,
-#                 early_stopping_rounds=30)
-#
-# # Predict
-# y_pred = gbm.predict(X_test,
-#                      num_iteration=gbm.best_iteration).argmax(axis=1)
-# y_pred = le.inverse_transform(y_pred)
-#
-# subm = test[['cuisine']].copy()
-# subm['cuisine'] = y_pred
-# subm.to_csv("submission.csv")
+# Import the required libraries
+from sklearn.cross_validation import train_test_split
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.multiclass import OneVsRestClassifier
+from sklearn.naive_bayes import GaussianNB
+from sklearn.preprocessing import LabelEncoder
+from sklearn.svm import SVC
+from sklearn.metrics import confusion_matrix, accuracy_score
 
 import pandas as pd
-df = pd.read_csv('first_cook.csv')
-df=df[['id','cuisine']]
-print(df[:5])
-df.to_csv('first.csv',index=False)
+import json
+
+# Dataset Preparation
+print ("Read Dataset ... ")
+def read_dataset(path):
+    return json.load(open(path))
+train = read_dataset('data/train.json')
+test = read_dataset('data/test.json')
+
+# Text Data Features
+print ("Prepare text data of Train and Test ... ")
+def generate_text(data):
+    text_data = [" ".join(doc['ingredients']).lower() for doc in data]
+    return text_data
+
+train_text = generate_text(train)
+test_text = generate_text(test)
+target = [doc['cuisine'] for doc in train]
+
+# Feature Engineering
+print ("TF-IDF on text data ... ")
+tfidf = TfidfVectorizer(binary=True)
+def tfidf_features(txt, flag):
+    if flag == "train":
+        x = tfidf.fit_transform(txt)
+    else:
+        x = tfidf.transform(txt)
+    x = x.astype('float16')
+    return x
+X = tfidf_features(train_text, flag="train")
+X_test = tfidf_features(test_text, flag="test")
+
+# Label Encoding - Target
+print ("Label Encode the Target Variable ... ")
+lb = LabelEncoder()
+y = lb.fit_transform(target)
+
+# # Model Training
+# print ("Train the model ... ")
+# classifier = SVC(C=100, # penalty parameter
+#                  kernel='rbf', # kernel type, rbf working fine here
+#                  degree=3, # default value
+#                  gamma=1, # kernel coefficient
+#                  coef0=1, # change to 1 from default value of 0.0
+#                  shrinking=True, # using shrinking heuristics
+#                  tol=0.001, # stopping criterion tolerance
+#                  probability=False, # no need to enable probability estimates
+#                  cache_size=200, # 200 MB cache size
+#                  class_weight=None, # all classes are treated equally
+#                  verbose=False, # print the logs
+#                  max_iter=-1, # no limit, let it run
+#                  decision_function_shape=None, # will use one vs rest explicitly
+#                  random_state=None)
+# model = OneVsRestClassifier(classifier, n_jobs=4)
+
+## Model Tuning
+# parameters = {"estimator__gamma":[0.01, 0.5, 0.1, 2, 5]}
+# grid_search = GridSearchCV(model, param_grid=parameters)
+# grid_search.fit(X, y)
+# print grid_search.best_score_
+# print grid_search.best_params_
+####
+
+X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=1)
+
+print('Fitting the model ...')
+model = OneVsRestClassifier(SVC(max_iter=-1,C=100,kernel='rbf',degree=3,gamma='auto',cache_size=400))
+
+model.fit(X_train, y_train)
+yval_pred = model.predict(X_val)
+
+accuracy = accuracy_score(y_val,yval_pred)
+
+print(accuracy)
+
+# # Predictions
+# print ("Predict on test data ... ")
+# y_test = model.predict(X_test)
+# y_pred = lb.inverse_transform(y_test)
+#
+# # Submission
+# print ("Generate Submission File ... ")
+# test_id = [doc['id'] for doc in test]
+# sub = pd.DataFrame({'id': test_id, 'cuisine': y_pred}, columns=['id', 'cuisine'])
+# sub.to_csv('opwc_5918.csv', index=False)
