@@ -55,11 +55,7 @@ fabric.properties
 .ipynb_checkpoints
 */.ipynb_checkpoints/*
 
-WhatsCooking_mySol/data
-Mercari_mySol/data
-Santander_mySol/data
-Titanic_mySol/data
-Movie_Sentiment_mySol/data
-2sigma_mySol/data
-TensorASR_mySol/data
-GoogleCRP_mySol/data
+*/catboost_info
+*/data
+*.csv
+*.png

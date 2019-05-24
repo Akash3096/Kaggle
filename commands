@@ -1,0 +1,27 @@
+ssh -L 8889:localhost:8888 akash@49.207.181.89 -p 5155
+source tmp/envs/kvenv/bin/activate
+jupyter notebook
+ssh akash@49.207.181.89 -p 5155
+
+Tensorflow
+
+EAGER EXECUTION
+
+from tensorflow.contrib.eager.python import tfe
+tfe.enable_eager_execution()
+
+VISUALIZE
+
+import tensorboard
+with tf.summary.Filewriter('summaries', sess.graph) as writer:
+
+tensorboard.start()
+
+DATA SHAPES
+
+tf.reshape()
+tf.slice()
+
+LOGGING
+
+tf.logging.set_verbosity(tf.logging.INFO)
